@@ -9,5 +9,9 @@
 namespace MachineLearning {
 
     class HiddenLayer : public Layer {
+        friend class ANNetwork;
+
+    public:
+        HiddenLayer( const size_t _neuronCount );
     };
 }

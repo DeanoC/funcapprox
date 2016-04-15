@@ -7,8 +7,8 @@
 #include "ActivationFunction.h"
 
 namespace MachineLearning {
-    void ActivationFunction::activate(const size_t numItems, Core::VectorALU::const_real_array_ptr &begin,
-                                      Core::VectorALU::real_array_ptr &output) const {
+    void ActivationFunction::activate( const size_t numItems, Core::VectorALU::const_real_array_ptr &begin,
+                                       Core::VectorALU::real_array_ptr output ) const {
         auto alu = Core::VectorALUFactory();
 
         switch (activationFunctionType) {
@@ -24,16 +24,8 @@ namespace MachineLearning {
             case ActivationFunctionType::HyperbolicTangent:
                 alu->hyperbolicTangent(numItems, begin, output);
                 break;
-            case ActivationFunctionType::ReLU: {
-                // todo remove allocations
-                auto tmp = alu->newRealVector(numItems);
-                auto tmp2 = alu->newRealVector(numItems);
-                alu->step(numItems, begin, param0, tmp);
-                alu->negate(numItems, tmp, tmp2);
-                alu->replaceif(numItems, tmp2, begin, param1, output);
-                alu->deleteRealVector(tmp);
-                alu->deleteRealVector(tmp2);
-            }
+            case ActivationFunctionType::ReLU:
+                alu->relu( numItems, begin, param0, output );
                 break;
         }
     }

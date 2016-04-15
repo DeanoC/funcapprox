@@ -12,6 +12,8 @@
 
 namespace MachineLearning {
     class ANNetwork {
+        FRIEND_TEST( MachineLearningTests, ANNetworkStructureInOut );
+
     public:
 
         ANNetwork();
@@ -32,26 +34,29 @@ namespace MachineLearning {
 
         size_t getLayerCount() const { return layers.size( ); }
 
+        void setRandomWeights();
+
         /// call this before using the network, if you will be training pass willTrain = true
         void finalise( bool willTrain = false );
 
         // given input produce the approximate answer output
         void evaluate( Core::VectorALU::const_real_array_ptr &input );
 
-        void computeLayerDeltas( Core::VectorALU::const_real_array_ptr &perfect );
+        void computeGradients( Core::VectorALU::const_real_array_ptr &perfect );
 
         void updateWeights();
 
         // given known input and output, update the layer weights
-        void supervisedTrain( Core::VectorALU::const_real_array_ptr &input, Core::VectorALU::real_array_ptr &output );
+        void supervisedTrain( Core::VectorALU::const_real_array_ptr &input,
+                              Core::VectorALU::const_real_array_ptr &output );
 
-        Core::real getLearningRate() const { return learningRate; }
+        Core::real getLearningRate() const { return etalearningRate; }
 
-        void setLearningRate( Core::real _learningRate ) { learningRate = _learningRate; }
+        void setLearningRate( Core::real _learningRate ) { etalearningRate = _learningRate; }
 
-        Core::real getMomentum() const { return momentum; }
+        Core::real getMomentum() const { return alphaMomentum; }
 
-        void setMomentum( Core::real _momentum ) { momentum = _momentum; }
+        void setMomentum( Core::real _momentum ) { alphaMomentum = _momentum; }
 
         size_t getTotalNeuronCount() const { return totalNeuronCount; }
 
@@ -59,18 +64,19 @@ namespace MachineLearning {
         size_t totalNeuronCount; // how many neurons across the whole network
         size_t totalWeightCount; // how many weights across the whole network
 
-        Core::VectorALU::real_array_ptr scratchPad; // scratch pad used as a temporary, totalWeightCount in size
+        Core::VectorALU::real_array_ptr scratchPad0; // scratch pad 0 used as a temporary, totalWeightCount in size
+        Core::VectorALU::real_array_ptr scratchPad1; // scratch pad 1 used as a temporary, totalWeightCount in size
         Core::VectorALU::real_array_ptr sums;       // the summed per activation value of each neuron
         Core::VectorALU::real_array_ptr outputs;    // the output post activation per neuron
         Core::VectorALU::real_array_ptr weights;    // the weight value of each neuron to neuron interconnect
 
         // training only arrays
         Core::VectorALU::real_array_ptr deltaWeights;
-        Core::VectorALU::real_array_ptr nodeDelta;
+        Core::VectorALU::real_array_ptr nodeDeltas;
         Core::VectorALU::real_array_ptr gradients;
 
-        Core::real learningRate;
-        Core::real momentum;
+        Core::real etalearningRate;
+        Core::real alphaMomentum;
 
         std::vector<Layer::shared_ptr>       layers;
         std::vector<Connections::shared_ptr> connections;

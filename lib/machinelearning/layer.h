@@ -9,16 +9,16 @@
 #include <vector>
 #include "core/core.h"
 #include "core/vectoralu.h"
+#include "machinelearning/ActivationFunction.h"
 
 namespace MachineLearning {
-
-    class ActivationFunction;
 
     /*
      * There are a number of layers types, which the 3 basic types as Input, Hidden and Output
      */
     enum class LayerType : uint8_t {
         InputLayer = 0,
+        HiddenLayer,
         OutputLayer
     };
 
@@ -67,7 +67,7 @@ namespace MachineLearning {
 
         const bool biased;
 
-        std::shared_ptr<ActivationFunction> activationFunc;
+        std::unique_ptr<ActivationFunction> activationFunc;
 
         size_t neuronIndex; // where does the neurons start for this layer in the shared array
     };

@@ -13,7 +13,7 @@ namespace MachineLearning {
     public:
         friend class ANNetwork;
 
-        InputLayer( const size_t _neuronCount = 1 );
+        InputLayer( const size_t _neuronCount );
 
         InputLayer( const size_t _neuronCount, const Core::real *_inputData );
 

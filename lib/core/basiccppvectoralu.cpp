@@ -131,10 +131,16 @@ namespace Core {
         });
     }
 
-    void BasicCPPVectorALU::step(const size_t numItems, const_real_array_ptr &a, const real test,
-                                 real_array_ptr &o) const {
-        BinOp(numItems, a, test, o,
-              [](const real av, const real bv) -> real { return (av >= bv) ? Core::real(1) : Core::real(0); });
+    void BasicCPPVectorALU::step( const size_t numItems, const_real_array_ptr &a, const real test,
+                                  real_array_ptr &o ) const {
+        BinOp( numItems, a, test, o,
+               [ ]( const real av, const real bv ) -> real { return (av >= bv) ? real( 1.0 ) : real( 0.0 ); } );
+    }
+
+    void BasicCPPVectorALU::relu( const size_t numItems, const_real_array_ptr &a, const real test,
+                                  real_array_ptr &o, const real lower ) const {
+        BinOp( numItems, a, test, o,
+               [ lower ]( const real av, const real bv ) -> real { return (av >= bv) ? av : lower; } );
     }
 
     void BasicCPPVectorALU::sigmoid(const size_t numItems, const_real_array_ptr &a, real_array_ptr &o) const {

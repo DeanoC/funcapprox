@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "layer.h"
-
+#include "core/core.h"
+#include "core/vectoralu.h"
 namespace MachineLearning {
 
     enum class ActivationFunctionType : uint8_t {
@@ -25,8 +25,8 @@ namespace MachineLearning {
 
         bool hasDerivative() const;
 
-        void activate(const size_t numItems, Core::VectorALU::const_real_array_ptr &begin,
-                      Core::VectorALU::real_array_ptr &output) const;
+        void activate( const size_t numItems, Core::VectorALU::const_real_array_ptr &begin,
+                       Core::VectorALU::real_array_ptr output ) const;
 
         void differentiate(const size_t numItems, Core::VectorALU::const_real_array_ptr &begin,
                            Core::VectorALU::real_array_ptr &output) const;
