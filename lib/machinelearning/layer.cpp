@@ -3,17 +3,16 @@
 //
 
 #include "core/core.h"
-#include "core/vectoralu.h"
 #include "machinelearning/layer.h"
 
 namespace MachineLearning {
 
-    void Layer::finalise() {
-        totalSize = 1;
-        for (auto size : sizeOfDims) {
-            totalSize *= size;
-        }
+    Layer::Layer( const LayerType _layerType, const size_t _neuronCount, const bool _biased ) :
+            layerType( _layerType ),
+            neuronCount( _neuronCount ),
+            biased( _biased ) {
     }
+
 /*
     bool FullLayer::forwardPass() const {
         auto alu = Core::VectorALUFactory();

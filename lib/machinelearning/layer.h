@@ -14,36 +14,62 @@ namespace MachineLearning {
 
     class ActivationFunction;
 
-    enum class LayerConnections : uint8_t {
+    /*
+     * There are a number of layers types, which the 3 basic types as Input, Hidden and Output
+     */
+    enum class LayerType : uint8_t {
         InputLayer = 0,
         OutputLayer
     };
 
+    /*
+     * Layers are internally flat arrays of real numbers, a LayerView makes them appear as N dimenstional objects
+     */
+    class LayerView {
+    public:
+        virtual size_t numberOfDimensions() const { return sizeOfDims.size( ); }
+
+        virtual size_t sizeOfDimension( const size_t d ) const { return sizeOfDims.at( d ); }
+
+    protected:
+        std::vector<size_t> sizeOfDims;         // each dimension has N elements
+    };
+
+
+    /*
+     * A layer has (external) arrays of reals repesenting an ANN layer, each also has a non linear activation function
+     * For efficiency the actually data is stored in a large continous array and the layer just contains the offset
+     * where its actualy data is.
+     */
     class Layer {
     public:
         friend class ANNetwork;
 
-        using vector_type = Core::VectorALU::real_array_ptr;
         using shared_ptr = std::shared_ptr<Layer>;
 
-        virtual size_t numberOfDimensions() const { return sizeOfDims.size(); }
+        LayerType getLayerType() const { return layerType; }
 
-        virtual size_t sizeOfDimension(const size_t d) const { return sizeOfDims.at(d); }
+        size_t countOfNeurons() const { return neuronCount + ( isBiased( ) ? 1 : 0 ); }
 
-        virtual size_t size() const { return totalSize; }
-
-        virtual const LayerConnections getConnectionType() const = 0;
-
-        virtual void finalise();
-
+        bool isBiased() const {
+            return biased;
+        }
 
     protected:
-        Layer() = default;
+
+        Layer( const LayerType _layerType, const size_t _neuronCount, const bool _biased = true );
+
+        Layer() = delete;
+
+        const LayerType layerType;
+
+        const size_t neuronCount; // how many nuerons in this layer
+
+        const bool biased;
 
         std::shared_ptr<ActivationFunction> activationFunc;
 
-        std::vector<size_t> sizeOfDims;         // each dimension has N elements
-        size_t totalSize = 0;                   // how many in total reals in this layer
+        size_t neuronIndex; // where does the neurons start for this layer in the shared array
     };
 }
 
