@@ -43,23 +43,45 @@ namespace MachineLearning {
      */
     class Layer {
     public:
-        friend class ANNetwork;
-
         using shared_ptr = std::shared_ptr<Layer>;
 
         LayerType getLayerType() const { return layerType; }
 
-        size_t countOfNeurons() const { return neuronCount + ( isBiased( ) ? 1 : 0 ); }
+        // number of neurons + the bias neuron where appropiate
+        size_t countOfNeurons() const { return neuronCount + (isBiased( ) ? 1 : 0); }
 
         bool isBiased() const {
             return biased;
         }
 
+        // always retuns the actual neuron count whereas countOfNeurons counts the implicit bias when applicable
+        const size_t getActualNeuronCount() const {
+            return neuronCount;
+        }
+
+        size_t getNeuronIndex() const {
+            return neuronIndex;
+        }
+
+        void setNeuronIndex( size_t _neuronIndex ) {
+            neuronIndex = _neuronIndex;
+        }
+
+        const ActivationFunction &getActivationFunc() const {
+            return activationFunc;
+        }
+
+
     protected:
 
-        Layer( const LayerType _layerType, const size_t _neuronCount, const bool _biased = true );
+        Layer( const LayerType _layerType, const size_t _neuronCount, const ActivationFunction &af,
+               const bool _biased = true );
 
         Layer() = delete;
+
+        const ActivationFunction &activationFunc;
+
+        size_t neuronIndex; // where does the neurons start for this layer in the shared array
 
         const LayerType layerType;
 
@@ -67,9 +89,7 @@ namespace MachineLearning {
 
         const bool biased;
 
-        std::unique_ptr<ActivationFunction> activationFunc;
 
-        size_t neuronIndex; // where does the neurons start for this layer in the shared array
     };
 }
 

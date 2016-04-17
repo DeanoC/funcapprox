@@ -47,10 +47,11 @@ namespace MachineLearning {
                 // todo remove allocations
                 auto tmp = alu->newRealVector(numItems);
                 auto tmp2 = alu->newRealVector(numItems);
-                alu->sigmoid(numItems, begin, tmp);
+                alu->sigmoid( numItems, begin, output );
                 alu->set(numItems, Core::real(1.0), tmp2);
-                alu->sub(numItems, tmp2, tmp, tmp2);
-                alu->mul(numItems, tmp, tmp2, output);
+                alu->sub( numItems, tmp2, output, tmp );
+                alu->mul( numItems, tmp, output, tmp2 );
+                alu->copy( numItems, tmp2, output );
                 alu->deleteRealVector(tmp);
                 alu->deleteRealVector(tmp2);
             }

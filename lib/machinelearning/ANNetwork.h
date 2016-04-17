@@ -15,6 +15,7 @@ namespace MachineLearning {
         FRIEND_TEST( MachineLearningTests, ANNetworkStructureInOut );
 
     public:
+        using MatchingPair = std::pair<Core::VectorALU::const_real_array_ptr, Core::VectorALU::const_real_array_ptr>;
 
         ANNetwork();
 
@@ -36,19 +37,20 @@ namespace MachineLearning {
 
         void setRandomWeights();
 
+        void setWeights( const std::vector<Core::real> &in );
+
         /// call this before using the network, if you will be training pass willTrain = true
         void finalise( bool willTrain = false );
 
         // given input produce the approximate answer output
-        void evaluate( Core::VectorALU::const_real_array_ptr &input );
+        void evaluate( Core::VectorALU::const_real_array_ptr input, Core::VectorALU::real_array_ptr results );
 
         void computeGradients( Core::VectorALU::const_real_array_ptr &perfect );
 
         void updateWeights();
 
         // given known input and output, update the layer weights
-        void supervisedTrain( Core::VectorALU::const_real_array_ptr &input,
-                              Core::VectorALU::const_real_array_ptr &output );
+        void supervisedTrain( const std::vector<MatchingPair> &trainingSet, const std::vector<MatchingPair> &testSet );
 
         Core::real getLearningRate() const { return etalearningRate; }
 
@@ -66,6 +68,8 @@ namespace MachineLearning {
 
         Core::VectorALU::real_array_ptr scratchPad0; // scratch pad 0 used as a temporary, totalWeightCount in size
         Core::VectorALU::real_array_ptr scratchPad1; // scratch pad 1 used as a temporary, totalWeightCount in size
+        Core::VectorALU::real_array_ptr scratchPad2; // scratch pad 1 used as a temporary, totalWeightCount in size
+
         Core::VectorALU::real_array_ptr sums;       // the summed per activation value of each neuron
         Core::VectorALU::real_array_ptr outputs;    // the output post activation per neuron
         Core::VectorALU::real_array_ptr weights;    // the weight value of each neuron to neuron interconnect

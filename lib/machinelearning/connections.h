@@ -16,15 +16,10 @@ namespace MachineLearning {
 
         using shared_ptr = std::shared_ptr<Connections>;
 
-        // construct a full connected layer between 2 layers
-        Connections( const Layer::shared_ptr &_from, const Layer::shared_ptr &_to );
+        // -1 (default) for edgesPerNeuron is shortcut for fully connectioned
+        Connections( const Layer::shared_ptr _from, const Layer::shared_ptr _to, int _fromEdgesPerNeuron = -1 );
 
-        // todo partially connected ctor
-
-    public:
         const size_t getWeightCount() const { return weightCount; }
-
-        const size_t getNeuronConnectionCount() const { return neuronConnectionCount; }
 
     private:
         const Layer::shared_ptr from;
@@ -33,7 +28,8 @@ namespace MachineLearning {
 
         const size_t weightCount; // how many weights in this layer
 
-        const size_t neuronConnectionCount; // How many connections (aka weights) per neuron in this layer
+        const size_t srcNeuronConnectionCount; // How many connections (aka weights) per neuron relative to the src
+        const size_t dstNeuronConnectionCount; // How many connections (aka weights) per neuron relative to the dest
 
         mutable size_t weightIndex; // where does the weights for depth N to N + 1 start in the shared array
     };

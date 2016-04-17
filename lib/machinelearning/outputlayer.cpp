@@ -8,8 +8,10 @@
 
 namespace MachineLearning {
 
+    static ActivationFunction sActFunc( ActivationFunctionType::Sigmoid );
+
     OutputLayer::OutputLayer( const size_t _neuronCount ) :
-            Layer( LayerType::OutputLayer, _neuronCount, false ) {
+            Layer( LayerType::OutputLayer, _neuronCount, sActFunc, false ) {
     }
 
 }

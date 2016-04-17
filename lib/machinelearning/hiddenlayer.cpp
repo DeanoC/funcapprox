@@ -7,7 +7,9 @@
 
 namespace MachineLearning {
 
+    static ActivationFunction sActFunc( ActivationFunctionType::Sigmoid );
+
     HiddenLayer::HiddenLayer( const size_t _neuronCount ) :
-            Layer( LayerType::HiddenLayer, _neuronCount, false ) {
+            Layer( LayerType::HiddenLayer, _neuronCount, sActFunc, true ) {
     }
 }

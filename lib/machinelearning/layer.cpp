@@ -7,9 +7,11 @@
 
 namespace MachineLearning {
 
-    Layer::Layer( const LayerType _layerType, const size_t _neuronCount, const bool _biased ) :
+    Layer::Layer( const LayerType _layerType, const size_t _neuronCount, const ActivationFunction &af,
+                  const bool _biased ) :
             layerType( _layerType ),
             neuronCount( _neuronCount ),
+            activationFunc( af ),
             biased( _biased ) {
     }
 

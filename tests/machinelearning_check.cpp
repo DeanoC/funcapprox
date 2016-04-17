@@ -5,6 +5,7 @@
 #include "core/core.h"
 #include "core/random.h"
 #include <array>
+#include <boost/generator_iterator.hpp>
 #include "machinelearning/machinelearning.h"
 #include "machinelearning/inputlayer.h"
 #include "machinelearning/hiddenlayer.h"
@@ -80,11 +81,9 @@ namespace MachineLearning {
 
         auto connector = std::make_shared<Connections>( inLayer, outLayer1 );
         EXPECT_EQ( connector->getWeightCount( ), 3 * 1 );
-        EXPECT_EQ( connector->getNeuronConnectionCount( ), 1 );
 
         auto connector2 = std::make_shared<Connections>( inLayer, outLayer2 );
         EXPECT_EQ( connector2->getWeightCount( ), 3 * 2 );
-        EXPECT_EQ( connector2->getNeuronConnectionCount( ), 2 );
 
     }
 
@@ -112,7 +111,7 @@ namespace MachineLearning {
             std::array<Core::real, 2> out;
             a.activate( 2, in.begin( ), out.begin( ) );
             EXPECT_FLOAT_EQ( out[ 0 ], real( 0.5 ) );
-            EXPECT_FLOAT_EQ( out[ 1 ], real( 0.73105897 ) );
+            EXPECT_FLOAT_EQ( out[ 1 ], real( 0.7310586 ) );
         }
         {
             ActivationFunction        a( ActivationFunctionType::HyperbolicTangent );
@@ -136,7 +135,7 @@ namespace MachineLearning {
 
         using namespace Core;
         using namespace MachineLearning;
-
+/*
         {
             std::array<Core::real, 2> input1{ real( 0.0 ), real( 1.0 ) };
             std::array<Core::real, 1> perfect1{ real( 4.0 ) };
@@ -176,17 +175,17 @@ namespace MachineLearning {
             EXPECT_FLOAT_EQ( ann.weights[ 0 ], 0.880438685 );
 
             ann.computeGradients( perfect1.data( ) );
-        }
+        }*/
         {
             // XOR Neural network test
-            // 2 inputs (bool) -> 1 output (bool) with 1 node hidden layer
+            // 2 inputs (bool) -> 1 output (bool) with 3 node hidden layer
 
             auto inLayer  = std::make_shared<InputLayer>( 2 );
-            auto hidLayer = std::make_shared<HiddenLayer>( 1 );
+            auto hidLayer = std::make_shared<HiddenLayer>( 2 );
             auto outLayer = std::make_shared<OutputLayer>( 1 );
 
-            auto connIH = std::make_shared<Connections>( inLayer, hidLayer );
-            auto connHO = std::make_shared<Connections>( hidLayer, outLayer );
+            auto connIH = std::make_shared<Connections>( inLayer, hidLayer, 2 );
+            auto connHO = std::make_shared<Connections>( hidLayer, outLayer, 1 );
 
             ANNetwork ann{ };
             ann.addLayer( inLayer );
@@ -196,20 +195,43 @@ namespace MachineLearning {
             ann.connectLayers( connHO );
             ann.finalise( true );
 
-            Core::Random::seed( 0xDEA0DEA0 ); // fixed seed for test
-            ann.setRandomWeights( );
-            auto ti0 = std::array<Core::real, 2>{ real( 0.0 ), real( 0.0 ) };
-            auto ti1 = std::array<Core::real, 2>{ real( 1.0 ), real( 0.0 ) };
-            auto ti2 = std::array<Core::real, 2>{ real( 0.0 ), real( 1.0 ) };
-            auto ti3 = std::array<Core::real, 2>{ real( 1.0 ), real( 1.0 ) };
+            // use weights from JHeatons website to check answers
+            std::vector<Core::real> wts{
+                    0.13, 0.63, 0.68, 0.89, 0.94, -0.86,
+                    -0.5, -0.4, 0.44
+            };
+            ann.setWeights( wts );
 
-            auto to0 = std::array<Core::real, 1>{ real( 0.0 ) };
-            auto to1 = std::array<Core::real, 1>{ real( 1.0 ) };
-            ann.supervisedTrain( ti0.data( ), to0.data( ) );
-            ann.supervisedTrain( ti1.data( ), to1.data( ) );
-            ann.supervisedTrain( ti2.data( ), to1.data( ) );
-            ann.supervisedTrain( ti3.data( ), to0.data( ) );
 
+            const auto ti0 = std::array<Core::real, 2>{ real( 0.0 ), real( 0.0 ) };
+            const auto ti1 = std::array<Core::real, 2>{ real( 1.0 ), real( 0.0 ) };
+            const auto ti2 = std::array<Core::real, 2>{ real( 0.0 ), real( 1.0 ) };
+            const auto ti3 = std::array<Core::real, 2>{ real( 1.0 ), real( 1.0 ) };
+            const auto to0 = std::array<Core::real, 1>{ real( 0.0 ) };
+            const auto to1 = std::array<Core::real, 1>{ real( 1.0 ) };
+            using pair = std::pair<std::array<Core::real, 2>, std::array<Core::real, 1> >;
+
+            const pair arr[] = { pair( ti0, to0 ), pair( ti1, to1 ), pair( ti2, to1 ), pair( ti3, to0 ) };
+
+            Random::uniform_int_gen_type                            kRandGen( Random::generator,
+                                                                              Random::ui_distribution_type( 0, 3 ) );
+            boost::generator_iterator<Random::uniform_int_gen_type> kIter( &kRandGen );
+
+            std::array<int, 3>                   train = { *kIter++, *kIter++, *kIter++ };
+            std::vector<ANNetwork::MatchingPair> training;
+
+//            for( auto &&it : train ) {
+//                training.push_back( ANNetwork::MatchingPair( arr[ it ].first.data( ), arr[ it ].second.data( ) ) );
+//            }
+            training.emplace_back( ti0.data( ), to0.data( ) );
+            training.emplace_back( ti1.data( ), to1.data( ) );
+            training.emplace_back( ti2.data( ), to1.data( ) );
+            training.emplace_back( ti3.data( ), to0.data( ) );
+            training.emplace_back( ti0.data( ), to0.data( ) );
+            training.emplace_back( ti1.data( ), to1.data( ) );
+            training.emplace_back( ti2.data( ), to1.data( ) );
+            training.emplace_back( ti2.data( ), to0.data( ) );
+            ann.supervisedTrain( training, training );
         }
 
     }

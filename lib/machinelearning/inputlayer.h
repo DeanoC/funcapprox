@@ -20,8 +20,6 @@ namespace MachineLearning {
         template< size_t count >
         InputLayer( const std::array<Core::real, count> &array ) : InputLayer( count, array.data( ) ) { }
 
-    public:
-
         const std::vector<Core::real> &getInputData() const { return inputData; }
 
         void setInputData( const std::vector<Core::real> &_inputData ) { inputData = _inputData; }

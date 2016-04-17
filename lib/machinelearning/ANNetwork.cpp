@@ -37,14 +37,15 @@ namespace MachineLearning {
             totalWeightCount( 0 ),
             scratchPad0( nullptr ),
             scratchPad1( nullptr ),
+            scratchPad2( nullptr ),
             sums( nullptr ),
             outputs( nullptr ),
             weights( nullptr ),
             deltaWeights( nullptr ),
             nodeDeltas( nullptr ),
             gradients( nullptr ),
-            etalearningRate( 0.4 ),
-            alphaMomentum( 0.1 ) {
+            etalearningRate( 0.7 ),
+            alphaMomentum( 0.3 ) {
     }
 
     ANNetwork::~ANNetwork() {
@@ -52,6 +53,7 @@ namespace MachineLearning {
 
         if( scratchPad0 != nullptr ) { alu->deleteRealVector( scratchPad0 ); }
         if( scratchPad1 != nullptr ) { alu->deleteRealVector( scratchPad1 ); }
+        if( scratchPad1 != nullptr ) { alu->deleteRealVector( scratchPad2 ); }
         if( sums != nullptr ) { alu->deleteRealVector( sums ); }
         if( outputs != nullptr ) { alu->deleteRealVector( outputs ); }
         if( weights != nullptr ) { alu->deleteRealVector( weights ); }
@@ -64,12 +66,10 @@ namespace MachineLearning {
     void ANNetwork::addLayer( const Layer::shared_ptr layer ) {
         if( layers.empty( ) ) {
             assert( layer->getLayerType( ) == LayerType::InputLayer );
-            layer->activationFunc = std::make_unique<ActivationFunction>( ActivationFunctionType::Linear );
             layers.push_back( layer );
         } else {
             assert( layer->getLayerType( ) != LayerType::InputLayer );
             layers.push_back( layer );
-            layer->activationFunc = std::make_unique<ActivationFunction>( ActivationFunctionType::ReLU );
         }
     }
 
@@ -90,7 +90,17 @@ namespace MachineLearning {
         for( int                                                 i = 0; i < totalWeightCount; ++i ) {
             *(weights + i) = *kIter++;
         }
+    }
 
+    void ANNetwork::setWeights( const std::vector<Core::real> &in ) {
+        assert( weights != nullptr );
+        assert( in.size( ) == totalWeightCount );
+
+        size_t    i = 0;
+        for( auto &&it : in ) {
+            weights[ i ] = it;
+            ++i;
+        }
     }
 
     void ANNetwork::finalise( bool willTrain ) {
@@ -102,7 +112,7 @@ namespace MachineLearning {
 
         size_t   neuronIndex = 0;
         for( int i           = 0; i < layers.size( ); ++i ) {
-            layers[ i ]->neuronIndex = neuronIndex;
+            layers[ i ]->setNeuronIndex( neuronIndex );
             neuronIndex += layers[ i ]->countOfNeurons( );
         }
 
@@ -115,16 +125,23 @@ namespace MachineLearning {
         totalNeuronCount = neuronIndex;
         totalWeightCount = weightIndex;
 
-        // a temp buffer reused in several places through an epoch, enough for all weights
+        // temp buffers reused in several places through an epoch, enough for all weights
         scratchPad0 = alu->newRealVector( totalWeightCount );
         scratchPad1 = alu->newRealVector( totalWeightCount );
+        scratchPad2 = alu->newRealVector( totalWeightCount );
+
+        alu->set( totalWeightCount, Core::real( 0 ), scratchPad0 );
+        alu->set( totalWeightCount, Core::real( 0 ), scratchPad1 );
+        alu->set( totalWeightCount, Core::real( 0 ), scratchPad2 );
 
         sums    = alu->newRealVector( totalNeuronCount );
         outputs = alu->newRealVector( totalNeuronCount );
-        weights = alu->newRealVector( totalWeightCount );
+
 
         alu->set( totalNeuronCount, Core::real( 0 ), sums );
         alu->set( totalNeuronCount, Core::real( 0 ), outputs );
+
+        weights = alu->newRealVector( totalWeightCount );
         alu->set( totalWeightCount, Core::real( 0 ), weights );
 
         if( willTrain ) {
@@ -138,51 +155,66 @@ namespace MachineLearning {
         }
     }
 
-    void ANNetwork::evaluate( Core::VectorALU::const_real_array_ptr &input ) {
+    void ANNetwork::evaluate( Core::VectorALU::const_real_array_ptr input, Core::VectorALU::real_array_ptr results ) {
         using namespace Core;
 
         auto     alu = Core::VectorALUFactory( );
 
         {
             const auto &iLayer  = connections[ 0 ]->from;
-            auto       iOutputs = outputs + iLayer->neuronIndex;
-            alu->copy( iLayer->neuronCount, input, iOutputs ); // neuronCount doesn't have bias in
-            iOutputs[ iLayer->neuronCount ] = Core::real( 1.0 ); // bias neuron
+            auto       iOutputs = outputs + iLayer->getNeuronIndex( );
+            alu->copy( iLayer->getActualNeuronCount( ), input, iOutputs ); // neuronCount doesn't have bias in
+            iOutputs[ iLayer->getActualNeuronCount( ) ] = Core::real( 1.0 ); // bias neuron
         }
+
         for( int i   = 0; i < connections.size( ); ++i ) {
             const auto &srcLayer = connections[ i ]->from;
 
-            const auto srcNeuronCount = srcLayer->countOfNeurons( );
-            const auto srcOutputs     = outputs + srcLayer->neuronIndex;
+            const auto srcNeuronCount = srcLayer->getActualNeuronCount( );
+            const auto srcOutputs     = outputs + srcLayer->getNeuronIndex( );
 
-            const auto neuronConnectionCount = connections[ i ]->neuronConnectionCount;
+            const auto neuronConnectionCount = connections[ i ]->srcNeuronConnectionCount;
             auto       scratch               = scratchPad0 + connections[ i ]->weightIndex;
 
             alu->replicateItems( srcNeuronCount, neuronConnectionCount, srcOutputs, scratch );
+            // now add bias 1 if need
+            if( srcLayer->isBiased( ) ) {
+                for( int j = 0; j < neuronConnectionCount; ++j ) {
+                    scratch[ (srcNeuronCount * neuronConnectionCount) + j ] = Core::real( 1.0 );
+                }
+            }
         }
 
         // weight the connections (all at once)
-        alu->mul( totalWeightCount, weights, scratchPad0, scratchPad0 );
+        alu->mul( totalWeightCount, weights, scratchPad0, scratchPad1 );
 
         // sum the result per layer
         for( int i = 0; i < connections.size( ); ++i ) {
             const auto &toLayer = connections[ i ]->to;
 
             // weights store on from layer
-            const auto toNeuronCount = toLayer->countOfNeurons( );
-            const auto toNeuronIndex = toLayer->neuronIndex;
+            const auto toNeuronCount = toLayer->getActualNeuronCount( );
+            const auto toNeuronIndex = toLayer->getNeuronIndex( );
 
-            const auto neuronConnectionCount = connections[ i ]->neuronConnectionCount;
+            const auto neuronConnectionCount = connections[ i ]->dstNeuronConnectionCount;
             auto       layerSums             = sums + toNeuronIndex;
             auto       layerOutputs          = outputs + toNeuronIndex;
+            auto       scratch               = scratchPad1 + connections[ i ]->weightIndex;
 
             for( auto j = 0; j < toNeuronCount; ++j ) {
-                const auto scratch = scratchPad0 + connections[ i ]->weightIndex + (j * neuronConnectionCount);
-                *(layerSums + j) = alu->horizSum( neuronConnectionCount, scratch );
+                alu->gather( neuronConnectionCount,
+                             scratch + j,
+                             connections[ i ]->srcNeuronConnectionCount,
+                             scratchPad0 );
+                *(layerSums + j) = alu->horizSum( neuronConnectionCount, scratchPad0 );
             }
 
             // activate each neuron in this layer
-            toLayer->activationFunc->activate( toNeuronCount, sums, layerOutputs );
+            toLayer->getActivationFunc( ).activate( toNeuronCount, layerSums, layerOutputs );
+        }
+
+        if( results != nullptr ) {
+            alu->copy( layers.back( )->getActualNeuronCount( ), outputs + layers.back( )->getNeuronIndex( ), results );
         }
     }
 
@@ -193,8 +225,11 @@ namespace MachineLearning {
 
         // output layer is a special case (compare with perfect)
         {
-            const auto &dstLayer      = layers.back( );
-            const auto dstNeuronIndex = dstLayer->neuronIndex;
+            const auto &connect  = connections.back( );
+            const auto &dstLayer = connect->to;
+            assert( dstLayer->getLayerType( ) == LayerType::OutputLayer );
+
+            const auto dstNeuronIndex = dstLayer->getNeuronIndex( );
             const auto dstNeuronCount = dstLayer->countOfNeurons( );
 
             alu->sub( dstNeuronCount,
@@ -202,10 +237,10 @@ namespace MachineLearning {
                       outputs + dstNeuronIndex,
                       scratchPad0 );
 
-            auto dstGradients = gradients + dstNeuronIndex;
+            auto dstDeltas = nodeDeltas + dstNeuronIndex;
 
-            dstLayer->activationFunc->differentiate( dstNeuronCount, scratchPad0, dstGradients );
-//            alu->negate( dstNeuronCount, deltas, deltas );
+            dstLayer->getActivationFunc( ).differentiate( dstNeuronCount, scratchPad0, scratchPad1 );
+            alu->negate( dstNeuronCount, scratchPad1, dstDeltas );
         }
 
         // note: we are back propagating so last hidden layer to first hidden layer
@@ -213,27 +248,28 @@ namespace MachineLearning {
             const auto &dstLayer = connections[ i ]->from;
             const auto &srcLayer = connections[ i ]->to;
 
-
             const auto weight                  = weights + connections[ i ]->weightIndex;
             const auto weightCount             = connections[ i ]->weightCount;
-            const auto numConnectionsPerNeuron = connections[ i ]->neuronConnectionCount;
+            const auto numConnectionsPerNeuron = connections[ i ]->dstNeuronConnectionCount;
 
-            const auto srcGradients   = gradients + srcLayer->neuronIndex;
+            const auto srcDeltas      = nodeDeltas + srcLayer->getNeuronIndex( );
+            const auto srcOutputs     = outputs + srcLayer->getNeuronIndex( );
             const auto srcNeuronCount = srcLayer->countOfNeurons( );
 
-            auto       dstGradients   = gradients + dstLayer->neuronIndex;
+            auto       tmpDeltas      = scratchPad1 + dstLayer->getNeuronIndex( );
+            auto       dstDeltas      = nodeDeltas + dstLayer->getNeuronIndex( );
             const auto dstNeuronCount = dstLayer->countOfNeurons( );
 
             for( int j = 0; j < srcNeuronCount; ++j ) {
                 alu->mul( numConnectionsPerNeuron,
                           weight + (j * numConnectionsPerNeuron),
-                          *(srcGradients + j),
+                          *(srcDeltas + j),
                           scratchPad0 );
 
-                *(dstGradients + j) = alu->horizSum( numConnectionsPerNeuron, scratchPad0 );
+                *(tmpDeltas + j) = alu->horizSum( numConnectionsPerNeuron, scratchPad0 );
             }
 
-            dstLayer->activationFunc->differentiate( dstNeuronCount, dstGradients, dstGradients );
+            dstLayer->getActivationFunc( ).differentiate( dstNeuronCount, tmpDeltas, dstDeltas );
         }
     }
 
@@ -243,46 +279,70 @@ namespace MachineLearning {
 
         for( int i = 0; i < connections.size( ); ++i ) {
             const auto &srcLayer = connections[ i ]->from;
-            const auto &dstLayer = connections[ i ]->to;
 
-            const auto srcNeuronCount = srcLayer->countOfNeurons( );
-            const auto srcOutputs     = outputs + srcLayer->neuronIndex;
+            const auto srcNeuronConnectionCount = connections[ i ]->srcNeuronConnectionCount;
+            const auto srcOutput                = outputs + srcLayer->getNeuronIndex( );
+            auto       scratch0                 = scratchPad0 + connections[ i ]->weightIndex;
+            alu->replicateItems( srcLayer->countOfNeurons( ), srcNeuronConnectionCount, srcOutput, scratch0 );
 
-            const auto neuronConnectionCount = connections[ i ]->neuronConnectionCount;
-            auto       scratch               = scratchPad0 + connections[ i ]->weightIndex;
-            const auto dstGradients          = gradients + dstLayer->neuronIndex;
+            const auto &dstLayer                = connections[ i ]->to;
+            const auto dstNeuronConnectionCount = connections[ i ]->dstNeuronConnectionCount;
+            const auto dstDeltas                = outputs + dstLayer->getNeuronIndex( );
+            auto       scratch1                 = scratchPad1 + connections[ i ]->weightIndex;
+            alu->replicateItems( dstLayer->countOfNeurons( ), dstNeuronConnectionCount, dstDeltas, scratch1 );
+        }
+        alu->mul( totalWeightCount, scratchPad0, scratchPad1, scratchPad2 );
 
-            alu->replicateItems( srcNeuronCount, neuronConnectionCount, srcOutputs, scratch );
+        // weight the connections (all at once)
+        alu->fmad( totalWeightCount,
+                   scratchPad2,
+                   weights,
+                   -etalearningRate,
+                   scratchPad0 ); // eta * grad * in (at weight rate)
+        alu->fmad( totalNeuronCount, weights, alphaMomentum, scratchPad0, scratchPad1 ); // momentum
 
-            for( int j = 0; j < neuronConnectionCount; ++j ) {
-                auto scr = scratch + (j * neuronConnectionCount);
-                alu->mul( neuronConnectionCount, scr, dstGradients, scr );
+        alu->copy( totalWeightCount, scratchPad1, weights );
+    }
+
+    void ANNetwork::supervisedTrain( const std::vector<MatchingPair> &trainingSet,
+                                     const std::vector<MatchingPair> &testSet ) {
+
+        assert( trainingSet.size( ) > 0 );
+        assert( testSet.size( ) > 0 );
+
+        int epoch = 0;
+
+        auto tmpResults = std::vector<Core::real>( connections.back( )->to->getActualNeuronCount( ), Core::real( 0 ) );
+
+        Core::real bestErr = Core::real( 1 );
+
+        for( int epoch = 0; epoch < 10; ++epoch ) {
+            Core::real err = Core::real( 0 );
+
+            for( auto &&ipair : trainingSet ) {
+                evaluate( ipair.first, tmpResults.data( ) );
+                computeGradients( ipair.second );
+
+                err = RootMeanSquare( 1, ipair.second, tmpResults.data( ) );
+                std::cout << "training " << err << "\n";
+            }
+            if( err < bestErr ) {
+                std::cout << "Epoch " << epoch << "\n";
+                updateWeights( );
+                bestErr = err;
             }
         }
 
-        // weight the connections (all at once)
-        alu->mul( totalWeightCount, scratchPad0, etalearningRate, scratchPad0 ); // eta * grad * in (at weight rate)
-
-        alu->fmad( totalWeightCount, deltaWeights, alphaMomentum, scratchPad0, scratchPad1 );
-        alu->copy( totalWeightCount, scratchPad0, deltaWeights );
-        alu->add( totalWeightCount, weights, scratchPad1, weights );
+//        setErr /= trainingSet.size( );
     }
-
 /*
-    void ANNetwork::updateWeights() {
-        auto alu = Core::VectorALUFactory();
-
-        // dW(t) = (learning * gradient) + (alphaMomentum *  dW(t-1))
-        alu->mul( workspace->totalWeightCount, workspace->weights, alphaMomentum, workspace->scratchPad0 );
-        alu->fmad( workspace->totalWeightCount, trainingWorkspace->gradients, etalearningRate, workspace->scratchPad0, workspace->weights );
-    }
-*/
-
-    void ANNetwork::supervisedTrain( Core::VectorALU::const_real_array_ptr &input,
-                                     Core::VectorALU::const_real_array_ptr &output ) {
-        evaluate( input );
+    void ANNetwork::supervisedTrainMiniBatch( int numTraining,  Core::VectorALU::const_real_array_ptr* input,
+                                                                Core::VectorALU::const_real_array_ptr* output ) {
+        evaluate( input, nullptr );
         computeGradients( output );
         updateWeights( );
     }
+*/
+
 
 }
